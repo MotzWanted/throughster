@@ -1,0 +1,1 @@
+{"id": "cmpl-2eeb863dde7b4f78b6d7f96d84ec0977", "object": "chat.completion", "created": 1718112966, "model": "meta-llama/Meta-Llama-3-70B-Instruct", "choices": [{"index": 0, "message": {"role": "assistant", "content": "Here"}, "logprobs": null, "finish_reason": "length", "stop_reason": null}], "usage": {"prompt_tokens": 16, "total_tokens": 17, "completion_tokens": 1}}
