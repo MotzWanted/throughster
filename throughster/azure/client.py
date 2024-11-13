@@ -11,11 +11,9 @@ from openai.types.chat import (
 )
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message_tool_call import Function
-import pydantic
 
 from throughster.azure.models import OpenAIChatRequest
 from throughster.base import ModelInterface
-from throughster.core.decorators import _pydantic_tools_call
 from throughster.core.errors import AzureContentFilterError, CompletionError, RateLimitError
 from throughster.core.models import BaseResponse
 
@@ -80,27 +78,26 @@ class OpenAiInterface(ModelInterface):
 
     @validate_completion_response
     def unpack_call(self, response: httpx.Response) -> BaseResponse:
-        """Unpack the openai message."""
+        """Unpack the openai message.
+        NOTE: implement functionality to allow for n_samples > 1.
+        """
         completion = ChatCompletion.model_validate_json(response.text)
         choice = completion.choices[0]
         if choice.message.tool_calls:
-            return BaseResponse(
-                source=f"api.{completion.model}",
-                finish_reason=choice.finish_reason,
-                content=self.unpack_tool_call(choice),
-                usage=completion.usage,  # type: ignore
-            )
-        if choice.finish_reason == "content_filter":
-            msg = "Content was filtered due to Azure or OpenAI's content management policy."
-            raise AzureContentFilterError(msg, request=response.request, response=response)
-        if choice.message.content is None:
-            msg = f"OpenAI API returned an unexpected completion: {completion}"
-            raise ValueError(msg)
+            choice.message.content = self.unpack_tool_call(choice)
+        # if choice.finish_reason == "content_filter":
+        #     msg = "Content was filtered due to Azure or OpenAI's content management policy."
+        #     raise AzureContentFilterError(msg, request=response.request, response=response)
+        # if choice.message.content is None:
+        #     msg = f"OpenAI API returned an unexpected completion: {completion}"
+        #     raise ValueError(msg)
         return BaseResponse(
-            source=f"api.{completion.model}",
-            finish_reason=choice.finish_reason,
-            content=choice.message.content,
-            usage=completion.usage,  # type: ignore
+            id=completion.id,
+            object="structured.completion",
+            created=completion.created,
+            model=completion.model,
+            choices=[choice.model_dump()],  # type: ignore
+            usage=completion.usage.model_dump() if completion.usage else None,  # type: ignore
         )
 
     @validate_completion_response
@@ -118,10 +115,3 @@ class OpenAiInterface(ModelInterface):
             if choice_chunk.delta.content is None:
                 continue
             yield choice_chunk.delta.content
-
-    async def tools_call(
-        self, request: dict[str, typ.Any], tools: list[pydantic.BaseModel], max_attempts: int = 2
-    ) -> BaseResponse:
-        """Call the tool endpoint."""
-        wrapped_call = _pydantic_tools_call(self.call, tools, max_attempts)
-        return wrapped_call(request)

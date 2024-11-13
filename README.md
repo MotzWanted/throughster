@@ -10,7 +10,7 @@
 </div>
 <br/>
 
-# <auto-title>Throughster⚡️</auto-title>
+# <auto-title>THROUGHSTER</auto-title>
 
 `Throughster` is designed to provide a *unified interface* for API interactions with various large language model (LLM).
 

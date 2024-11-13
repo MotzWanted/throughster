@@ -60,16 +60,7 @@ class VllmOpenAiInterface(ModelInterface):
     @validate_completion_response
     def unpack_call(self, response: httpx.Response) -> BaseResponse:
         """Unpack the openai message."""
-        completion = models.ChatCompletionResponse.model_validate_json(response.text)
-        choice = completion.choices[0]
-        logprobs = typ.cast(models.LogProbs, choice.logprobs)
-        return BaseResponse(
-            source=f"model.{completion.model}",
-            content=choice.message,
-            finish_reason=choice.finish_reason,
-            logprobs=logprobs.top_logprobs if logprobs else None,
-            usage=completion.usage,  # type: ignore
-        )
+        return BaseResponse.model_validate_json(response.text)
 
     @validate_completion_response
     async def unpack_stream(self, response: httpx.Response) -> AsyncGenerator[str, None]:

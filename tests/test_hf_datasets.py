@@ -39,7 +39,7 @@ class OperationWithClient(HfOperation):
         requests = [{"model": self.model, "messages": self.messages} for _ in batch["value"]]
         results = asyncio.run(self.fn(requests))
 
-        return {"value": batch["value"], "response": [result.content for result in results]}
+        return {"value": batch["value"], "response": [c.content for result in results for c in result.choices]}
 
     async def fn(self, requests: list[dict[str, typ.Any]]) -> list[BaseResponse]:
         coroutines = [self.client.call(request=request) for request in requests]

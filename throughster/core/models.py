@@ -14,38 +14,50 @@ class UsageInfo(pydantic.BaseModel):
     completion_tokens: int | None = 0
 
 
-class TenacityRetryStats(pydantic.BaseModel):
-    start_time: float
-    attempt_number: int
-    idle_for: float
-    delay_since_first_attempt: float = None
+class LogProbs(pydantic.BaseModel):
+    text_offset: list[int] = pydantic.Field(default_factory=list)
+    token_logprobs: list[float] = pydantic.Field(default_factory=list)
+    tokens: list[str] = pydantic.Field(default_factory=list)
+    top_logprobs: list[dict[str, float]] = pydantic.Field(default_factory=list)
 
 
-class RetryStats(pydantic.BaseModel):
-    """Retry stats."""
+class ResponseChoice(pydantic.BaseModel):
+    """Base response."""
 
-    tenacity: TenacityRetryStats | None = None
-    error_count: dict[str, int] | None = None
+    index: int
+    content: str = pydantic.Field(..., validation_alias=pydantic.AliasChoices("message", "text"))
+    finish_reason: str
+    validated_schema: pydantic.BaseModel | None = None
+    logprobs: LogProbs | None = None
+
+    @pydantic.field_validator("content", mode="before")
+    @classmethod
+    def validate_message(cls: type["ResponseChoice"], v: dict[str, str] | str) -> str:
+        """Validate the message."""
+        if isinstance(v, dict):
+            return v["content"]
+        return v
+
+    @pydantic.field_validator("logprobs", mode="before")
+    @classmethod
+    def validate_logprobs(cls: type["ResponseChoice"], v: dict[str, typ.Any] | list[dict] | None) -> dict | None:
+        """Validate the logprobs."""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return {"top_logprobs": v}
+        return v
 
 
 class BaseResponse(pydantic.BaseModel):
-    """Base response."""
+    """Text completion model."""
 
-    source: str
-    content: str
-    finish_reason: str
-    validated_schema: pydantic.BaseModel | None = None
-    logprobs: list[dict[str, float]] | None = None
+    id: str
+    object: typ.Literal["chat.completion", "text_completion", "structured.completion"]
+    created: int
+    model: str
+    choices: list[ResponseChoice]
     usage: UsageInfo | None = None
-    retry_stats: RetryStats | None = None
-
-    @pydantic.field_validator("usage", mode="before")
-    @classmethod
-    def validate_usage(cls: type["BaseResponse"], v: UsageInfo | dict | None) -> dict[str, typ.Any] | None:
-        """Validate the usage."""
-        if isinstance(v, pydantic.BaseModel):
-            return v.model_dump()
-        return v
 
 
 class ClientSettings(pydantic.BaseModel):
