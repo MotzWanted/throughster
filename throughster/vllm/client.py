@@ -5,7 +5,6 @@ from functools import wraps
 import httpx
 
 from throughster.base import ModelInterface
-from throughster.core.decorators import _nlg_evaluation
 from throughster.core.errors import CompletionError
 from throughster.core.models import BaseResponse, ModelCard
 from throughster.vllm import models
@@ -74,34 +73,3 @@ class VllmOpenAiInterface(ModelInterface):
             if choice_chunk.delta.content is None:
                 continue
             yield choice_chunk.delta.content
-
-    async def nlg_evaluation(
-        self, request: dict[str, typ.Any], protocol: str | list[dict[str, str]], scores: list[int]
-    ) -> tuple[BaseResponse, float]:
-        """Evaluates the quality of a natural language generation (NLG) response using a specified protocol and scoring
-        range, normalizing the scores with the probabilities of output tokens from the LLM.
-
-        This method calculates the probability of each predefined score and computes a weighted summation to derive a
-        fine-grained, continuous final score that better reflects the quality and diversity of the generated texts.
-
-        Args:
-            `request (dict[str, typ.Any])`: A dictionary containing the parameters required for the API call.
-            `protocol (str | list[dict[str, str]])`: A protocol string or a list of chat messages defining the evaluation criteria
-            and instructions. The protocol provides context and guidelines for assessing the quality of the generated text.
-            `scores (list[int])`: A list of integers representing the possible scores that can be assigned during evaluation.
-            This list defines the scoring range for assessing the quality of the text (e.g., [1, 2, 3, 4, 5]).
-
-        Returns:
-            tuple[BaseResponse, float]: A tuple containing:
-                - `BaseResponse`: The response object from the model's inference.
-                - `float`: The evaluated score for the quality of the text, computed as a weighted sum.
-
-        Calculation:
-            The final score is calculated using the formula:
-                `score = sum(p(si) * si for si in S)`
-            where `p(si)` is the probability of score `si` being assigned by the LLM.
-
-        For details, see: https://arxiv.org/pdf/2303.16634
-        """  # noqa: E501
-        wrapped_call = _nlg_evaluation(self.call, protocol, scores)
-        return await wrapped_call(request)
