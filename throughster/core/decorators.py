@@ -7,15 +7,12 @@ import typing as typ
 from collections.abc import Callable
 
 import anyio
-import numpy as np
 import pydantic
 from loguru import logger
 
 from throughster.core.errors import StructuredResponseError
 from throughster.core.models import BaseResponse
 from aiocache import BaseCache
-
-from throughster.core.retry import _retry_stat_decorator
 
 
 def _adjust_temperature(request: dict[str, typ.Any], max_attempts: int, attempt: int, adjust_temp_factor: float):
@@ -35,7 +32,7 @@ def _adjust_temperature(request: dict[str, typ.Any], max_attempts: int, attempt:
 
 
 def _structured_pydantic_call(
-    endpoint_func: typ.Callable, schema: type[pydantic.BaseModel], max_attempts: int, adjust_temp_factor: float = 1.5
+    endpoint_func: typ.Callable, schema: type[pydantic.BaseModel], max_attempts: int, adjust_temp_factor: float = 0.1
 ) -> Callable:
     """Endpoint wrapper to validate the llm response against a Pydantic schema."""
 
@@ -46,7 +43,9 @@ def _structured_pydantic_call(
             resp: BaseResponse = await endpoint_func(request, retry_fn_constructor)
 
             try:
-                resp.validated_schema = schema.model_validate_json(resp.content)
+                for c in resp.choices:
+                    c.validated_schema = schema.model_validate_json(c.content)
+                resp.object = "structured.completion"
                 return resp
             except pydantic.ValidationError:
                 request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
@@ -91,32 +90,6 @@ def _pydantic_tools_call(
     return wrapper
 
 
-def _nlg_evaluation(endpoint_func: typ.Callable, protocol: str | list[dict[str, str]], scores: list[int]) -> Callable:
-    """Endpoint wrapper to validate the llm response against a list of Pydantic schemas.
-
-    See for implementation details: https://arxiv.org/pdf/2303.16634.pdf
-    NOTE: This is currently only supported for vLLM instances.
-    """
-
-    @functools.wraps(endpoint_func)
-    async def wrapper(request: dict[str, typ.Any]) -> tuple[BaseResponse, float]:
-        request["guided_choice"] = scores
-        request["max_tokens"] = 1
-        request["logprobs"] = True
-        request["top_logprobs"] = len(scores)
-        request["messages"] = protocol if isinstance(protocol, list) else [{"role": "user", "content": protocol}]
-
-        resp: BaseResponse = await endpoint_func(request)
-
-        if resp.logprobs is None:
-            raise ValueError(f"Invalid logprobs: {resp}")
-
-        score = np.sum([np.exp(v) * int(k) for k, v in resp.logprobs[0].items()])
-        return resp, np.round(score, decimals=4)
-
-    return wrapper
-
-
 # workaround for the issue with the asyncio.run() function
 # https://github.com/microsoftgraph/msgraph-sdk-python/issues/366
 def get_loop():
@@ -147,8 +120,7 @@ def _batch_decorator(
         responses = [None] * len(requests)
 
         async def task_wrapper(index: int, request: dict[str, typ.Any]) -> None:
-            retry_fn = _retry_stat_decorator(retry_fn_constructor, async_method)
-            response: BaseResponse = await retry_fn(request)
+            response = await retry_fn_constructor()(async_method)(request, retry_fn_constructor)
             responses[index] = response
 
         # avoids potential race conditions where one coroutine could close the client before others finish
