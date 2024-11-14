@@ -4,11 +4,27 @@ from collections.abc import AsyncGenerator
 
 import httpx
 import pydantic
+import tenacity
 
+from throughster.core.errors import RateLimitError
 from throughster.core import decorators
 from throughster.core.models import BaseResponse, ModelCard
 from aiocache import BaseCache
-from throughster.core.retry import _retry_stat_decorator, RetryingConstructor, get_default_retry
+
+RetryingFn = typ.Callable[[typ.Callable], typ.Callable]
+RetryingConstructor = typ.Callable[[], RetryingFn]
+
+
+def get_default_retry() -> RetryingFn:
+    return tenacity.retry(
+        stop=tenacity.stop_after_attempt(10),
+        wait=tenacity.wait_exponential(multiplier=1, min=3, max=30),
+        retry=tenacity.retry_if_exception_type(RateLimitError)
+        | tenacity.retry_if_exception_type(httpx.TimeoutException)
+        | tenacity.retry_if_exception_type(httpx.ProtocolError)
+        | tenacity.retry_if_exception_type(httpx.NetworkError),
+        reraise=True,
+    )
 
 
 async def _call_client(
@@ -186,9 +202,7 @@ class ModelInterface(ABC):
         Returns:
             `BaseResponse`: A response object containing the result of the model's inference.
         """
-        retry_fn = _retry_stat_decorator(retry_fn_constructor, self._call)
-        response: BaseResponse = await retry_fn(request)
-        return response
+        return await retry_fn_constructor()(self._call)(request)
 
     async def _stream(self, request: dict) -> AsyncGenerator[str, None]:
         request["stream"] = True
@@ -210,9 +224,7 @@ class ModelInterface(ABC):
         Yields:
             `str`: Chunks of the model's response as they are received.
         """  # noqa: E501
-        retry_fn = _retry_stat_decorator(retry_fn_constructor, self._stream)
-        response: AsyncGenerator[str, None] = await retry_fn(request)
-        return response
+        return await retry_fn_constructor()(self._stream)(request)
 
     async def structured_call(
         self,
