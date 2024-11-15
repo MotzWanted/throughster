@@ -115,20 +115,27 @@ def _sync_call(async_method: typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, t
 
 def _batch_decorator(
     async_method: typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, BaseResponse]],
-) -> typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, list[BaseResponse]]]:
-    async def wrapper(requests: list[dict[str, typ.Any]], retry_fn_constructor) -> list[BaseResponse]:
-        responses = [None] * len(requests)
+) -> typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, list[BaseResponse | Exception]]]:
+    async def wrapper(requests: list[dict[str, typ.Any]], retry_fn_constructor) -> list[BaseResponse | Exception]:
+        # Explicitly allow BaseResponse, Exception, BaseExceptionGroup, or None
+        responses: list[BaseResponse | Exception | None] = [None] * len(requests)
 
         async def task_wrapper(index: int, request: dict[str, typ.Any]) -> None:
             response = await retry_fn_constructor()(async_method)(request, retry_fn_constructor)
             responses[index] = response
 
-        # avoids potential race conditions where one coroutine could close the client before others finish
-        async with anyio.create_task_group() as tg:
-            for idx, request in enumerate(requests):
-                tg.start_soon(task_wrapper, idx, request)
+        # Handle exceptions in the task group
+        try:
+            async with anyio.create_task_group() as tg:
+                for idx, request in enumerate(requests):
+                    tg.start_soon(task_wrapper, idx, request)
+        except* StructuredResponseError as excgroup:
+            for idx, exc in enumerate(excgroup.exceptions):
+                if isinstance(exc, StructuredResponseError):
+                    responses[idx] = exc  # Assign the StructuredResponseError
 
-        return typ.cast(list[BaseResponse], responses)
+        # Cast to ensure the final list only contains the desired types
+        return typ.cast(list[BaseResponse | Exception], responses)
 
     return wrapper
 
