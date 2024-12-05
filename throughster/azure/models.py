@@ -42,7 +42,11 @@ class OpenAIMessage(pydantic.BaseModel):
 class OpenAIChatRequest(pydantic.BaseModel):
     """OpenAI chat request."""
 
-    messages: list[OpenAIMessage]
+    messages: list[OpenAIMessage] = pydantic.Field(
+        ...,
+        description="List of messages to send to the model.",
+        validation_alias=pydantic.AliasChoices("prompt", "messages"),
+    )
     frequency_penalty: float | None = 0
     logit_bias: dict[int, float] | None = None
     max_tokens: int | None = None
