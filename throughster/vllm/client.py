@@ -22,8 +22,7 @@ def validate_completion_response(func: Callable) -> Callable:
             msg = "vLLM returned an unexpected completion."
             raise CompletionError(msg) from e
         except httpx.HTTPStatusError as e:
-            msg = "vLLM API returned an unexpected status code."
-            raise httpx.HTTPStatusError(message=msg, response=e.response, request=e.request) from e
+            raise httpx.HTTPStatusError(message=e, response=e.response, request=e.request) from e
 
     return wrapper
 
