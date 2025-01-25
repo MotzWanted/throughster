@@ -50,6 +50,7 @@ class VllmRequest(pydantic.BaseModel):
     max_tokens: int | None = 512
     logprobs: bool | None = False
     top_logprobs: int | None = None
+    seed: int | None = None
     skip_special_tokens: bool | None = True
     spaces_between_special_tokens: bool | None = True
     logits_processor: list[Callable] | None = None
