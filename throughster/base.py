@@ -8,7 +8,7 @@ import tenacity
 
 from throughster.core.errors import RateLimitError
 from throughster.core import decorators
-from throughster.core.models import BaseResponse, ModelCard
+from throughster.core.models import BaseResponse, EmbeddingResponse, ModelCard
 from aiocache import BaseCache
 
 RetryingFn = typ.Callable[[typ.Callable], typ.Callable]
@@ -300,7 +300,9 @@ class ModelInterface(ABC):
         resp = await self._call_client_function(self.client, "/embeddings", request)
         return self.unpack_embedding(resp)
 
-    async def embed(self, texts: list[str], retry_fn_constructor: RetryingConstructor = get_default_retry) -> dict:
+    async def embed(
+        self, texts: list[str], retry_fn_constructor: RetryingConstructor = get_default_retry
+    ) -> EmbeddingResponse:
         """Get embeddings for input texts."""
         request = {"input": texts, "model": self.model_name}
         return await retry_fn_constructor()(self._embed)(request)
