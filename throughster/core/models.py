@@ -73,7 +73,7 @@ class EmbeddingResponse(pydantic.BaseModel):
     created: int
     model: str
     data: list[EmbeddingResponseData]
-    usage: dict[str, int]
+    usage: UsageInfo | None = None
 
 
 class ClientSettings(pydantic.BaseModel):
