@@ -170,6 +170,10 @@ class ModelInterface(ABC):
     def unpack_stream(self, chunk: httpx.Response) -> AsyncGenerator[str, None]:
         """Unpack the response."""
 
+    @abstractmethod
+    def unpack_embedding(self, response: httpx.Response) -> BaseResponse:
+        """Unpack the embedding response."""
+
     @property
     @abstractmethod
     def headers(self) -> dict[str, str]:
@@ -290,3 +294,13 @@ class ModelInterface(ABC):
         max_attempts: int = 2,
     ) -> list[BaseResponse]:
         return decorators._sync_call(self.structured_batch_call)(requests, schema, max_attempts)
+
+    async def _embed(self, request: dict[str, typ.Any]) -> BaseResponse:
+        """Internal embedding call."""
+        resp = await self._call_client_function(self.client, "/embeddings", request)
+        return self.unpack_embedding(resp)
+
+    async def embed(self, texts: list[str], retry_fn_constructor: RetryingConstructor = get_default_retry) -> dict:
+        """Get embeddings for input texts."""
+        request = {"input": texts, "model": self.model_name}
+        return await retry_fn_constructor()(self._embed)(request)

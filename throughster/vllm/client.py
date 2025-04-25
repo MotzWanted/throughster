@@ -6,7 +6,7 @@ import httpx
 
 from throughster.base import ModelInterface
 from throughster.core.errors import CompletionError
-from throughster.core.models import BaseResponse, ModelCard
+from throughster.core.models import BaseResponse, EmbeddingResponse, ModelCard
 from throughster.vllm import models
 
 
@@ -22,7 +22,7 @@ def validate_completion_response(func: Callable) -> Callable:
             msg = "vLLM returned an unexpected completion."
             raise CompletionError(msg) from e
         except httpx.HTTPStatusError as e:
-            raise httpx.HTTPStatusError(message=e, response=e.response, request=e.request) from e
+            raise httpx.HTTPStatusError(message=str(e), response=e.response, request=e.request) from e
 
     return wrapper
 
@@ -72,3 +72,8 @@ class VllmOpenAiInterface(ModelInterface):
             if choice_chunk.delta.content is None:
                 continue
             yield choice_chunk.delta.content
+
+    @validate_completion_response
+    def unpack_embedding(self, response: httpx.Response) -> EmbeddingResponse:
+        """Unpack the embedding response."""
+        return EmbeddingResponse.model_validate_json(response.text)

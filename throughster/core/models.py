@@ -25,7 +25,8 @@ class ResponseChoice(pydantic.BaseModel):
     """Base response."""
 
     index: int
-    content: str = pydantic.Field(..., validation_alias=pydantic.AliasChoices("message", "text"))
+    content: str | None = pydantic.Field(None, validation_alias=pydantic.AliasChoices("message", "text"))
+    embedding: list[float] | None = None
     finish_reason: str
     validated_schema: pydantic.BaseModel | None = None
     logprobs: LogProbs | None = None
@@ -53,11 +54,26 @@ class BaseResponse(pydantic.BaseModel):
     """Text completion model."""
 
     id: str
-    object: typ.Literal["chat.completion", "text_completion", "structured.completion"]
+    object: typ.Literal["chat.completion", "text_completion", "structured.completion", "list"]
     created: int
     model: str
     choices: list[ResponseChoice]
     usage: UsageInfo | None = None
+
+
+class EmbeddingResponseData(pydantic.BaseModel):
+    index: int
+    object: str = "embedding"
+    embedding: list[float] | str
+
+
+class EmbeddingResponse(pydantic.BaseModel):
+    id: str
+    object: str = "list"
+    created: int
+    model: str
+    data: list[EmbeddingResponseData]
+    usage: dict[str, int]
 
 
 class ClientSettings(pydantic.BaseModel):
