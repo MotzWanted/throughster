@@ -3,12 +3,13 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 
 import httpx
+import numpy as np
 import pydantic
 import tenacity
 
 from throughster.core.errors import RateLimitError
 from throughster.core import decorators
-from throughster.core.models import BaseResponse, EmbeddingResponse, ModelCard
+from throughster.core.models import BaseResponse, ModelCard
 from aiocache import BaseCache
 
 RetryingFn = typ.Callable[[typ.Callable], typ.Callable]
@@ -171,7 +172,7 @@ class ModelInterface(ABC):
         """Unpack the response."""
 
     @abstractmethod
-    def unpack_embedding(self, response: httpx.Response) -> BaseResponse:
+    def unpack_embedding(self, response: httpx.Response) -> list[np.ndarray]:
         """Unpack the embedding response."""
 
     @property
@@ -295,14 +296,14 @@ class ModelInterface(ABC):
     ) -> list[BaseResponse]:
         return decorators._sync_call(self.structured_batch_call)(requests, schema, max_attempts)
 
-    async def _embed(self, request: dict[str, typ.Any]) -> BaseResponse:
+    async def _embed(self, request: dict[str, typ.Any]) -> list[np.ndarray]:
         """Internal embedding call."""
         resp = await self._call_client_function(self.client, "/embeddings", request)
         return self.unpack_embedding(resp)
 
     async def embed(
         self, texts: list[str], retry_fn_constructor: RetryingConstructor = get_default_retry
-    ) -> EmbeddingResponse:
+    ) -> list[np.ndarray]:
         """Get embeddings for input texts."""
         request = {"input": texts, "model": self.model_name}
         return await retry_fn_constructor()(self._embed)(request)

@@ -3,10 +3,12 @@ from collections.abc import AsyncGenerator, Callable
 from functools import wraps
 
 import httpx
+import numpy as np
+import orjson
 
 from throughster.base import ModelInterface
 from throughster.core.errors import CompletionError
-from throughster.core.models import BaseResponse, EmbeddingResponse, ModelCard
+from throughster.core.models import BaseResponse, ModelCard
 from throughster.vllm import models
 
 
@@ -74,6 +76,8 @@ class VllmOpenAiInterface(ModelInterface):
             yield choice_chunk.delta.content
 
     @validate_completion_response
-    def unpack_embedding(self, response: httpx.Response) -> EmbeddingResponse:
+    def unpack_embedding(self, response: httpx.Response) -> list[np.ndarray]:
         """Unpack the embedding response."""
-        return EmbeddingResponse.model_validate_json(response.text)
+        json_response = orjson.loads(response.text)
+        embedding_response = json_response["data"]
+        return [np.array(embedding["embedding"]) for embedding in embedding_response]  # type: ignore[no-untyped-call]
