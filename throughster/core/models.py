@@ -61,21 +61,6 @@ class BaseResponse(pydantic.BaseModel):
     usage: UsageInfo | None = None
 
 
-class EmbeddingResponseData(pydantic.BaseModel):
-    index: int
-    object: str = "embedding"
-    embedding: list[float] | str
-
-
-class EmbeddingResponse(pydantic.BaseModel):
-    id: str
-    object: str = "list"
-    created: int
-    model: str
-    data: list[EmbeddingResponseData]
-    usage: UsageInfo | None = None
-
-
 class ClientSettings(pydantic.BaseModel):
     """Client settings."""
 
