@@ -25,8 +25,7 @@ class ResponseChoice(pydantic.BaseModel):
     """Base response."""
 
     index: int
-    content: str | None = pydantic.Field(None, validation_alias=pydantic.AliasChoices("message", "text"))
-    embedding: list[float] | None = None
+    content: str = pydantic.Field(..., validation_alias=pydantic.AliasChoices("message", "text"))
     finish_reason: str
     validated_schema: pydantic.BaseModel | None = None
     logprobs: LogProbs | None = None
