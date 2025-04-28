@@ -307,3 +307,10 @@ class ModelInterface(ABC):
         """Get embeddings for input texts."""
         request = {"input": texts, "model": self.model_name}
         return await retry_fn_constructor()(self._embed)(request)
+
+    def embed_sync(
+        self, texts: list[str], retry_fn_constructor: RetryingConstructor = get_default_retry
+    ) -> list[np.ndarray]:
+        """Get embeddings for input texts."""
+        request = {"input": texts, "model": self.model_name}
+        return decorators._sync_call(self._embed)(request)
