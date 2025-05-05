@@ -56,6 +56,33 @@ def _structured_pydantic_call(
     return wrapper
 
 
+def _structured_call(
+    endpoint_func: typ.Callable,
+    parser: typ.Callable[[str], typ.Any | Exception],
+    max_attempts: int,
+    adjust_temp_factor: float = 0.1,
+) -> Callable:
+    """Endpoint wrapper to validate the llm response against a Pydantic schema."""
+
+    @functools.wraps(endpoint_func)
+    async def wrapper(request: dict[str, typ.Any], retry_fn_constructor: Callable) -> BaseResponse:
+        for attempt in range(max_attempts):
+            resp: BaseResponse = await endpoint_func(request, retry_fn_constructor)
+
+            try:
+                for c in resp.choices:
+                    parser(c.content)
+                resp.object = "structured.completion"
+                return resp
+            except Exception:
+                request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
+                continue
+
+        raise StructuredResponseError("No response was validated against the provided schema.")
+
+    return wrapper
+
+
 def _pydantic_tools_call(
     endpoint_func: typ.Callable, tools: list[pydantic.BaseModel], max_attempts: int, adjust_temp_factor: float
 ) -> Callable:

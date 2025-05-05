@@ -12,7 +12,6 @@ from throughster.base import ModelInterface
 from throughster.factory import create_interface
 from throughster.hf_datasets import HfOperation, transform
 from throughster.core.models import BaseResponse
-from throughster.prompt import Prompt
 
 SYSTEM_PROMPT = [{"role": "system", "content": "You are a helpful translator."}]
 USER_PROMPT = [
@@ -40,7 +39,7 @@ NUM_WORKERS = 2
 class Arguments(BaseSettings):
     provider: str = "vllm"
     api_base: str = "http://localhost:6538/v1"
-    deployment: str = "meta-llama/Meta-Llama-3.1-70B-instruct"
+    deployment: str = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
     source: LanguageCode = "en"
     target: LanguageCode = "fr"
 
@@ -55,7 +54,6 @@ class TranslateOp(HfOperation):
         init_client_fn: typ.Callable[..., ModelInterface],
         translate_from: LanguageCode,
         translate_to: LanguageCode,
-        prompt: Prompt,
         user_prompt: list[dict[str, str]],
         sampling_params: dict[str, typ.Any],
         text_key: str = "text",
@@ -63,7 +61,6 @@ class TranslateOp(HfOperation):
         self._client = None
         self.translate_from = SUPPORTED_LANGUAGES[translate_from]
         self.translate_to = SUPPORTED_LANGUAGES[translate_to]
-        self.prompt = prompt
         self.user_prompt = user_prompt
         self.text_key = text_key
         self.sampling_params = sampling_params
@@ -74,22 +71,30 @@ class TranslateOp(HfOperation):
         requests = self.create_requests(batch)
         results = asyncio.run(self.translate(requests=requests))
 
-        return {"text": batch[self.text_key], "translation": [r.content for r in results]}
+        return {
+            "text": batch[self.text_key],
+            "translation": [r.choices[0].content if not isinstance(r, Exception) else str(r) for r in results],
+        }
 
     def create_requests(self, batch: dict[str, list[typ.Any]]) -> list[dict[str, typ.Any]]:
         """Create translation requests."""
         return [
             {
-                "messages": self.prompt(
-                    prompt=self.user_prompt,
-                    prompt_variables={"text": text, "source": self.translate_from, "target": self.translate_to},
-                ),
+                "messages": SYSTEM_PROMPT
+                + [
+                    {
+                        "role": "user",
+                        "content": USER_PROMPT[0]["content"].format(
+                            source=self.translate_from, target=self.translate_to, text=text
+                        ),
+                    }
+                ],
                 **self.sampling_params,
             }
             for text in batch[self.text_key]
         ]
 
-    async def translate(self, requests: list[dict[str, typ.Any]]) -> list[BaseResponse]:
+    async def translate(self, requests: list[dict[str, typ.Any]]) -> list[BaseResponse | Exception]:
         """Async wrapper for the translation operation."""
         return await self.client.batch_call(requests)
 
@@ -108,7 +113,6 @@ def run(args: Arguments):
         init_client_fn=init_client_fn,
         translate_from=args.source,
         translate_to=args.target,
-        prompt=Prompt(system_prompt=SYSTEM_PROMPT),
         user_prompt=USER_PROMPT,
         sampling_params=sampling_params,
     )

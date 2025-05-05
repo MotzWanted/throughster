@@ -4,7 +4,6 @@ from collections.abc import AsyncGenerator
 
 import httpx
 import numpy as np
-import pydantic
 import tenacity
 
 from throughster.core.errors import RateLimitError
@@ -234,7 +233,7 @@ class ModelInterface(ABC):
     async def structured_call(
         self,
         request: dict[str, typ.Any],
-        schema: type[pydantic.BaseModel],
+        parser: typ.Callable[[str], typ.Any | Exception],
         max_attempts: int = 2,
         retry_fn_constructor: RetryingConstructor = get_default_retry,
     ) -> BaseResponse:
@@ -252,25 +251,23 @@ class ModelInterface(ABC):
         Raises:
             `StructuredResponseError`: If the response does not conform to the provided Pydantic schema.
         """  # noqa: E501
-        wrapped_call = decorators._structured_pydantic_call(self.call, schema, max_attempts)
+        wrapped_call = decorators._structured_call(self.call, parser, max_attempts)
         return await wrapped_call(request, retry_fn_constructor)
 
     async def batch_call(
         self, requests: list[dict[str, typ.Any]], retry_fn_constructor: RetryingConstructor = get_default_retry
-    ) -> list[BaseResponse]:
+    ) -> list[BaseResponse | Exception]:
         """Makes multiple post calls to the specified model endpoint with the provided request data."""
         return await decorators._batch_decorator(self.call)(requests, retry_fn_constructor)
 
     async def structured_batch_call(
         self,
         requests: list[dict[str, typ.Any]],
-        schema: type[pydantic.BaseModel],
+        parser: typ.Callable[[str], typ.Any | Exception],
         max_attempts: int = 2,
         retry_fn_constructor: RetryingConstructor = get_default_retry,
-    ) -> list[BaseResponse]:
-        wrapped_call = decorators._structured_pydantic_call(
-            endpoint_func=self.call, schema=schema, max_attempts=max_attempts
-        )
+    ) -> list[BaseResponse | Exception]:
+        wrapped_call = decorators._structured_call(endpoint_func=self.call, parser=parser, max_attempts=max_attempts)
         return await decorators._batch_decorator(wrapped_call)(requests, retry_fn_constructor)
 
     # Sync dectorators
@@ -280,10 +277,10 @@ class ModelInterface(ABC):
     def sync_structured_call(
         self,
         request: dict[str, typ.Any],
-        schema: type[pydantic.BaseModel],
+        parser: typ.Callable[[str], typ.Any | Exception],
         max_attempts: int = 2,
     ) -> BaseResponse:
-        return decorators._sync_call(self.structured_call)(request, schema, max_attempts)
+        return decorators._sync_call(self.structured_call)(request, parser, max_attempts)
 
     def sync_batch_call(self, requests: list[dict[str, typ.Any]]) -> list[BaseResponse]:
         return decorators._sync_call(self.batch_call)(requests)
@@ -291,10 +288,10 @@ class ModelInterface(ABC):
     def sync_structured_batch_call(
         self,
         requests: list[dict[str, typ.Any]],
-        schema: type[pydantic.BaseModel],
+        parser: typ.Callable[[str], typ.Any | Exception],
         max_attempts: int = 2,
     ) -> list[BaseResponse]:
-        return decorators._sync_call(self.structured_batch_call)(requests, schema, max_attempts)
+        return decorators._sync_call(self.structured_batch_call)(requests, parser, max_attempts)
 
     async def _embed(self, request: dict[str, typ.Any]) -> list[np.ndarray]:
         """Internal embedding call."""
