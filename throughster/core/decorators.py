@@ -15,7 +15,7 @@ from throughster.core.models import BaseResponse
 from aiocache import BaseCache
 
 
-def _adjust_temperature(request: dict[str, typ.Any], max_attempts: int, attempt: int, adjust_temp_factor: float):
+def _adjust_temperature(request: dict[str, typ.Any], adjust_temp_factor: float):
     """Custom activation function for temperature adjustment when validating the response fails."""
     temp = request.get("temperature", 0.1)
     # Exaggerate the adjustment for temperatures below 0.5, diminish adjustment for temperatures above 0.5
@@ -23,7 +23,7 @@ def _adjust_temperature(request: dict[str, typ.Any], max_attempts: int, attempt:
 
     new_temp = temp + delta_temp
     # Clamp the new temperature to [0.1, 1.5]
-    new_temp = max(0.1, min(new_temp, 1.5))
+    request["temperature"] = max(0.1, min(new_temp, 1.5))
     return request
 
 
@@ -44,7 +44,7 @@ def _structured_pydantic_call(
                 resp.object = "structured.completion"
                 return resp
             except pydantic.ValidationError:
-                request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
+                request = _adjust_temperature(request, adjust_temp_factor)
                 continue
 
         raise StructuredResponseError("No response was validated against the provided schema.")
@@ -71,7 +71,7 @@ def _structured_call(
                 resp.object = "structured.completion"
                 return resp
             except Exception as e:
-                request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
+                request = _adjust_temperature(request, adjust_temp_factor)
                 logger.info(
                     f"[{attempt}/{max_attempts}] {e}. Retrying with increased temperature: {request.get('temperature')}"
                 )
@@ -109,7 +109,7 @@ def _pydantic_tools_call(
             if valid_response:
                 return resp
 
-            request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
+            request = _adjust_temperature(request, adjust_temp_factor)
 
         raise StructuredResponseError("No response was validated against the provided list of tools.")
 
