@@ -22,8 +22,8 @@ def _adjust_temperature(request: dict[str, typ.Any], max_attempts: int, attempt:
     delta_temp = adjust_temp_factor * ((1 - temp) ** 2) * temp if temp > 0 else adjust_temp_factor * 0.1
 
     new_temp = temp + delta_temp
-    # Clamp the new temperature to [0, 1.5]
-    new_temp = max(0.0, min(new_temp, 1.5))
+    # Clamp the new temperature to [0.1, 1.5]
+    new_temp = max(0.1, min(new_temp, 1.5))
     return request
 
 
@@ -73,8 +73,7 @@ def _structured_call(
             except Exception as e:
                 request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
                 logger.info(
-                    f"[{attempt}/{max_attempts}] Couldn't validate response due to: {e}.",
-                    f"Retrying with increased temperature: {request.get('temperature')}",
+                    f"[{attempt}/{max_attempts}] {e}. Retrying with increased temperature: {request.get('temperature')}"
                 )
                 continue
 
