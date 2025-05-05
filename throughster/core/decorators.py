@@ -5,10 +5,10 @@ import inspect
 import json
 import typing as typ
 from collections.abc import Callable
+from loguru import logger
 
 import anyio
 import pydantic
-from loguru import logger
 
 from throughster.core.errors import StructuredResponseError
 from throughster.core.models import BaseResponse
@@ -24,10 +24,6 @@ def _adjust_temperature(request: dict[str, typ.Any], max_attempts: int, attempt:
     new_temp = temp + delta_temp
     # Clamp the new temperature to [0, 1.5]
     new_temp = max(0.0, min(new_temp, 1.5))
-    logger.info(
-        f"[{attempt}/{max_attempts}] Couldn't validate response.",
-        "Retrying with increased temperature: {new_temperature}",
-    )
     return request
 
 
@@ -74,8 +70,12 @@ def _structured_call(
                     parser(c.content)
                 resp.object = "structured.completion"
                 return resp
-            except Exception:
+            except Exception as e:
                 request = _adjust_temperature(request, max_attempts, attempt, adjust_temp_factor)
+                logger.info(
+                    f"[{attempt}/{max_attempts}] Couldn't validate response due to: {e}.",
+                    f"Retrying with increased temperature: {request.get('temperature')}",
+                )
                 continue
 
         raise StructuredResponseError("No response was validated against the provided schema.")
