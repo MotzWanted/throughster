@@ -44,7 +44,7 @@ class ClientSettings(pydantic_settings.BaseSettings):
 class AzureClientSettings(ClientSettings):
     """Settings for Azure OpenAI API."""
 
-    API_VERSION: str = pydantic.Field(default=None, description="API version")
+    API_VERSION: str | None = pydantic.Field(default=None, description="API version")
 
 
 class MistralClientSettings(ClientSettings):
