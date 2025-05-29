@@ -14,7 +14,11 @@ from openai.types.chat.chat_completion_message_tool_call import Function
 
 from throughster.azure.models import OpenAIChatRequest
 from throughster.base import ModelInterface
-from throughster.core.errors import AzureContentFilterError, CompletionError, RateLimitError
+from throughster.core.errors import (
+    AzureContentFilterError,
+    CompletionError,
+    RateLimitError,
+)
 from throughster.core.models import BaseResponse
 
 
@@ -32,12 +36,18 @@ def validate_completion_response(func: Callable) -> Callable:
         except httpx.HTTPStatusError as e:
             if e.response.status_code == fastapi.status.HTTP_429_TOO_MANY_REQUESTS:
                 msg = f"Azure OpenAI API rate limit exceeded for deployment: `{e.request.url}`."
-                raise RateLimitError(message="", request=e.request, response=e.response) from e
+                raise RateLimitError(
+                    message="", request=e.request, response=e.response
+                ) from e
             if "content_filter_result" in e.response.text.lower():
                 msg = "Content was filtered due to Azure or OpenAI's content management policy."
-                raise AzureContentFilterError(message=msg, request=e.request, response=e.response) from e
+                raise AzureContentFilterError(
+                    message=msg, request=e.request, response=e.response
+                ) from e
             msg = f"Azure OpenAI API returned an unexpected status code: {response.status_code}."
-            raise httpx.HTTPStatusError(message=msg, response=e.response, request=e.request) from e
+            raise httpx.HTTPStatusError(
+                message=msg, response=e.response, request=e.request
+            ) from e
 
     return wrapper
 
@@ -71,7 +81,9 @@ class OpenAiInterface(ModelInterface):
 
     def unpack_tool_call(self, choice: Choice) -> str:
         """Unpack the openai tool call message."""
-        tool_calls = typ.cast(list[ChatCompletionMessageToolCall], choice.message.tool_calls)
+        tool_calls = typ.cast(
+            list[ChatCompletionMessageToolCall], choice.message.tool_calls
+        )
         tool_call = ChatCompletionMessageToolCall.model_validate(tool_calls[0])
         function = Function.model_validate(tool_call.function)
         return function.arguments
@@ -101,7 +113,9 @@ class OpenAiInterface(ModelInterface):
         )
 
     @validate_completion_response
-    async def unpack_stream(self, response: httpx.Response) -> AsyncGenerator[str, None]:
+    async def unpack_stream(
+        self, response: httpx.Response
+    ) -> AsyncGenerator[str, None]:
         """Unpack the openai chunk."""
         async for chunk in response.aiter_lines():
             if "chat.completion.chunk" not in chunk:
@@ -111,7 +125,12 @@ class OpenAiInterface(ModelInterface):
             choice_chunk = chunk_completion.choices[0]
             if choice_chunk.finish_reason == "content_filter":
                 msg = "Content was filtered due to Azure or OpenAI's content management policy."
-                raise AzureContentFilterError(msg, request=response.request, response=response)
+                raise AzureContentFilterError(
+                    msg, request=response.request, response=response
+                )
             if choice_chunk.delta.content is None:
                 continue
             yield choice_chunk.delta.content
+
+    def unpack_embedding(self, response: httpx.Response) -> list:
+        raise NotImplementedError
