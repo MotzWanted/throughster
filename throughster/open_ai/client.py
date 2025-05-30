@@ -52,7 +52,7 @@ def validate_completion_response(func: Callable) -> Callable:
     return wrapper
 
 
-class AzureOpenAiInterface(ModelInterface):
+class OpenAiInterface(ModelInterface):
     """Generic interface for querying a causal language model hosted by OpenAI."""
 
     def list_models(self) -> list[str]:
@@ -61,7 +61,7 @@ class AzureOpenAiInterface(ModelInterface):
 
     @property
     def params(self) -> dict[str, str]:
-        return {"api-version": self.api_version}  # type: ignore
+        return {}  # type: ignore
 
     @property
     def headers(self) -> dict[str, str]:
@@ -69,10 +69,7 @@ class AzureOpenAiInterface(ModelInterface):
 
     @property
     def api_base(self) -> str:
-        if self.model_name is None:
-            return self._api_base
-        else:
-            return self._api_base + "openai/deployments/" + self.model_name
+        return self._api_base
 
     def validate_request(self, data: dict[str, typ.Any]) -> dict[str, typ.Any]:
         """Format the request data."""
@@ -97,12 +94,6 @@ class AzureOpenAiInterface(ModelInterface):
         choice = completion.choices[0]
         if choice.message.tool_calls:
             choice.message.content = self.unpack_tool_call(choice)
-        # if choice.finish_reason == "content_filter":
-        #     msg = "Content was filtered due to Azure or OpenAI's content management policy."
-        #     raise AzureContentFilterError(msg, request=response.request, response=response)
-        # if choice.message.content is None:
-        #     msg = f"OpenAI API returned an unexpected completion: {completion}"
-        #     raise ValueError(msg)
         return BaseResponse(
             id=completion.id,
             object="structured.completion",

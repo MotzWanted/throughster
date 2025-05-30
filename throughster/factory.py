@@ -1,7 +1,13 @@
 import httpx
 
 from throughster.core import config
-from throughster import ModelInterface, VllmOpenAiInterface, MistralInterface, OpenAiInterface
+from throughster import (
+    ModelInterface,
+    VllmOpenAiInterface,
+    MistralInterface,
+    AzureOpenAiInterface,
+    OpenAiInterface,
+)
 from throughster.core.constants import DEFAULT_LIMITS, DEFAULT_TIMEOUT
 from aiofilecache import FileCache
 from aiocache.serializers import PickleSerializer
@@ -23,9 +29,10 @@ def create_interface(
     """Create the model interface based on the provider."""
 
     provider_map = {
-        "azure": ("AZURE_OPENAI_", config.AzureClientSettings, OpenAiInterface),
+        "azure": ("AZURE_OPENAI_", config.AzureClientSettings, AzureOpenAiInterface),
         "vllm": ("VLLM_", config.VllmClientSettings, VllmOpenAiInterface),
         "mistral": ("MISTRAL_", config.MistralClientSettings, MistralInterface),
+        "openai": ("OPENAI_", config.OpenAiClientSettings, OpenAiInterface),
     }
 
     if provider not in provider_map:
@@ -50,7 +57,9 @@ def create_interface(
         api_base=settings.API_BASE,
         endpoint=endpoint,
         api_key=settings.API_KEY,
-        api_version=settings.API_VERSION if hasattr(settings, "API_VERSION") else api_version,
+        api_version=(
+            settings.API_VERSION if hasattr(settings, "API_VERSION") else api_version
+        ),
         model_name=settings.MODEL_NAME,
         limits=limits,
         timeout=timeout,
