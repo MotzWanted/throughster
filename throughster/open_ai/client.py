@@ -12,7 +12,6 @@ from openai.types.chat import (
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message_tool_call import Function
 
-from throughster.azure.models import OpenAIChatRequest
 from throughster.base import ModelInterface
 from throughster.core.errors import (
     AzureContentFilterError,
@@ -20,6 +19,7 @@ from throughster.core.errors import (
     RateLimitError,
 )
 from throughster.core.models import BaseResponse
+from throughster.open_ai.models import OpenAIChatRequest
 
 
 def validate_completion_response(func: Callable) -> Callable:
@@ -65,7 +65,10 @@ class OpenAiInterface(ModelInterface):
 
     @property
     def headers(self) -> dict[str, str]:
-        return {"api-key": self.api_key}  # type: ignore
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
     @property
     def api_base(self) -> str:

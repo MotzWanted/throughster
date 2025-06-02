@@ -77,7 +77,7 @@ class AzureOpenAiInterface(ModelInterface):
     def validate_request(self, data: dict[str, typ.Any]) -> dict[str, typ.Any]:
         """Format the request data."""
         m = OpenAIChatRequest(**data)
-        return m.model_dump(exclude_none=True)
+        return m.model_dump(by_alias=True, exclude_none=True)
 
     def unpack_tool_call(self, choice: Choice) -> str:
         """Unpack the openai tool call message."""

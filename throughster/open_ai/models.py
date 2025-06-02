@@ -1,8 +1,9 @@
-from typing import Any, Literal
+from typing import Any, Dict, Literal, Optional, Type
 
+import docstring_parser
 import pydantic
+from openai.lib._pydantic import to_strict_json_schema
 
-from throughster.azure.utils import get_openai_schema
 
 Roles = Literal["system", "user", "assistant", "tool"]
 
@@ -13,11 +14,28 @@ class ResponseFormat(pydantic.BaseModel):
     type: str | pydantic.Json = "json_object"
 
 
+class JSONSchema(pydantic.BaseModel):
+    """OpenAI JSON Schema."""
+
+    name: str
+    description: Optional[str] = None
+    schema: Optional[Dict[str, object]] = None
+    strict: Optional[bool] = None
+
+
+class ResponseFormatJSONSchema(pydantic.BaseModel):
+    """OpenAI response format as JSON schema."""
+
+    json_schema: JSONSchema
+    type: Literal["json_schema"]
+
+
 class Tool(pydantic.BaseModel):
     """Tool called by model."""
 
     type: Literal["function"] = "function"
     function: dict[str, Any]
+    strict: bool = True
 
 
 class ToolChoice(pydantic.BaseModel):
@@ -42,11 +60,7 @@ class OpenAIMessage(pydantic.BaseModel):
 class OpenAIChatRequest(pydantic.BaseModel):
     """OpenAI chat request."""
 
-    messages: list[OpenAIMessage] = pydantic.Field(
-        ...,
-        description="List of messages to send to the model.",
-        validation_alias=pydantic.AliasChoices("prompt", "messages"),
-    )
+    messages: list[OpenAIMessage]
     model: str = pydantic.Field(
         ...,
         description="The name or identifier of the deployed model.",
@@ -63,33 +77,35 @@ class OpenAIChatRequest(pydantic.BaseModel):
     temperature: float | None = 0.7
     top_p: float | None = 1
     user: str | None = None
-    response_format: ResponseFormat | None = None
-    tools: list[Tool] | None = pydantic.Field(
-        default=None, validation_alias=pydantic.AliasChoices("schema", "tools")
+    response_format: ResponseFormat | ResponseFormatJSONSchema | None = pydantic.Field(
+        default=None,
+        validation_alias=pydantic.AliasChoices("schema", "response_format"),
     )
-    tool_choice: Literal["none", "auto"] | ToolChoice | None = None
+    tools: list[Tool] | None = None
+    tool_choice: Literal["none", "auto", "required"] | ToolChoice | None = None
 
-    @pydantic.field_validator("tools", mode="before")
+    @pydantic.field_validator("response_format", mode="before")
     @classmethod
-    def validate_tool(
+    def validate_response_format(
         cls: type["OpenAIChatRequest"],
-        v: type[pydantic.BaseModel] | list[type[pydantic.BaseModel]] | None,
-    ) -> list[dict[str, Any]] | None:
-        """Validate tool."""
+        v: str | pydantic.Json | Type[pydantic.BaseModel] | None,
+    ) -> ResponseFormat | ResponseFormatJSONSchema | None:
+        """Validate the response format."""
         if v is None:
             return v
-        if isinstance(v, type) and issubclass(v, pydantic.BaseModel):
-            return [{"type": "function", "function": get_openai_schema(v)}]
-        return [{"type": "function", "function": get_openai_schema(m)} for m in v]
-
-    @pydantic.model_validator(mode="after")  # pyright: ignore reportArgumentType
-    @classmethod
-    def validate_tool_calls(cls: type["OpenAIChatRequest"], data: Any) -> Any:
-        """Validate tool_calls."""
-        if data.tools:
-            data.tool_choice = (
-                ToolChoice(function={"name": data.tools[0].function["name"]})
-                if len(data.tools) == 1
-                else "auto"
+        if issubclass(v, pydantic.BaseModel):
+            schema = to_strict_json_schema(v)
+            description = (
+                docstring_parser.parse(v.__doc__).description if v.__doc__ else None
             )
-        return data
+            name = v.__name__.encode("ascii", errors="ignore").decode()
+            return ResponseFormatJSONSchema(
+                type="json_schema",
+                json_schema=JSONSchema(
+                    name=name,
+                    description=description,
+                    strict=True,
+                    schema=schema,
+                ),
+            )
+        return ResponseFormat(type=v)
