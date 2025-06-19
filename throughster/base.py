@@ -311,3 +311,17 @@ class ModelInterface(ABC):
         """Get embeddings for input texts."""
         request = {"input": texts, "model": self.model_name}
         return decorators._sync_call(self._embed)(request)
+
+    async def batch_embed(
+        self, texts: list[list[str]], retry_fn_constructor: RetryingConstructor = get_default_retry
+    ) -> list[list[np.ndarray]]:
+        """Get embeddings for a batch of input texts."""
+        requests = [{"input": text, "model": self.model_name} for text in texts]
+        return await decorators._batch_decorator(self._embed)(requests, retry_fn_constructor)
+
+    def batch_embed_sync(
+        self, texts: list[list[str]], retry_fn_constructor: RetryingConstructor = get_default_retry
+    ) -> list[list[np.ndarray]]:
+        """Get embeddings for a batch of input texts."""
+        requests = [{"input": text, "model": self.model_name} for text in texts]
+        return decorators._sync_call(self.batch_embed)(requests, retry_fn_constructor)

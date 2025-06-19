@@ -28,7 +28,10 @@ def _adjust_temperature(request: dict[str, typ.Any], adjust_temp_factor: float):
 
 
 def _structured_pydantic_call(
-    endpoint_func: typ.Callable, schema: type[pydantic.BaseModel], max_attempts: int, adjust_temp_factor: float = 0.1
+    endpoint_func: typ.Callable,
+    schema: type[pydantic.BaseModel],
+    max_attempts: int,
+    adjust_temp_factor: float = 0.1,
 ) -> Callable:
     """Endpoint wrapper to validate the llm response against a Pydantic schema."""
 
@@ -56,7 +59,7 @@ def _structured_call(
     endpoint_func: typ.Callable,
     parser: typ.Callable[[str], typ.Any | Exception],
     max_attempts: int,
-    adjust_temp_factor: float = 0.1,
+    adjust_temp_factor: float = 0.5,
 ) -> Callable:
     """Endpoint wrapper to validate the llm response against a Pydantic schema."""
 
@@ -83,7 +86,10 @@ def _structured_call(
 
 
 def _pydantic_tools_call(
-    endpoint_func: typ.Callable, tools: list[pydantic.BaseModel], max_attempts: int, adjust_temp_factor: float
+    endpoint_func: typ.Callable,
+    tools: list[pydantic.BaseModel],
+    max_attempts: int,
+    adjust_temp_factor: float,
 ) -> Callable:
     """Endpoint wrapper to validate the llm response against a list of Pydantic schemas.
 
@@ -127,7 +133,9 @@ def get_loop():
     return loop
 
 
-def _sync_call(async_method: typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, typ.Any]]):
+def _sync_call(
+    async_method: typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, typ.Any]],
+):
     @functools.wraps(async_method)
     def wrapper(self, *args, **kwargs) -> typ.Any:
         # Ensure the method is a coroutine
@@ -186,7 +194,10 @@ def build_cache_key(ignore_args: list[str], func, *args, **kwargs) -> str:
 
 
 def _handle_cached_function(
-    func: typ.Callable, cache: BaseCache, cache_condition: typ.Callable, ignore_args: list[str] = []
+    func: typ.Callable,
+    cache: BaseCache,
+    cache_condition: typ.Callable,
+    ignore_args: list[str] = [],
 ) -> typ.Callable:
     """Endpoint wrapper to conditionally cache the LLM response."""
 
