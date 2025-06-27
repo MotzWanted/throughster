@@ -71,6 +71,7 @@ class OpenAIChatRequest(pydantic.BaseModel):
     frequency_penalty: float | None = 0
     logit_bias: dict[int, float] | None = None
     max_tokens: int | None = None
+    max_completion_tokens: int | None = None
     n: int | None = 1
     presence_penalty: None | float = 0
     stream: bool | None = False
