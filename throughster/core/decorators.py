@@ -18,12 +18,18 @@ from aiocache import BaseCache
 def _adjust_temperature(request: dict[str, typ.Any], adjust_temp_factor: float):
     """Custom activation function for temperature adjustment when validating the response fails."""
     temp = request.get("temperature", 0.1)
+    max_completion_tokens = request.get("max_completion_tokens", 10_000)
     # Exaggerate the adjustment for temperatures below 0.5, diminish adjustment for temperatures above 0.5
-    delta_temp = adjust_temp_factor * ((1 - temp) ** 2) * temp if temp > 0 else adjust_temp_factor * 0.1
+    delta_temp = (
+        adjust_temp_factor * ((1 - temp) ** 2) * temp
+        if temp > 0
+        else adjust_temp_factor * 0.1
+    )
 
     new_temp = temp + delta_temp
     # Clamp the new temperature to [0.1, 1.5]
     request["temperature"] = max(0.1, min(new_temp, 1.5))
+    request["max_completion_tokens"] = max_completion_tokens + 5_000
     return request
 
 
@@ -36,7 +42,9 @@ def _structured_pydantic_call(
     """Endpoint wrapper to validate the llm response against a Pydantic schema."""
 
     @functools.wraps(endpoint_func)
-    async def wrapper(request: dict[str, typ.Any], retry_fn_constructor: Callable) -> BaseResponse:
+    async def wrapper(
+        request: dict[str, typ.Any], retry_fn_constructor: Callable
+    ) -> BaseResponse:
         request["schema"] = schema
         for attempt in range(max_attempts):
             resp: BaseResponse = await endpoint_func(request, retry_fn_constructor)
@@ -50,7 +58,9 @@ def _structured_pydantic_call(
                 request = _adjust_temperature(request, adjust_temp_factor)
                 continue
 
-        raise StructuredResponseError("No response was validated against the provided schema.")
+        raise StructuredResponseError(
+            "No response was validated against the provided schema."
+        )
 
     return wrapper
 
@@ -64,8 +74,15 @@ def _structured_call(
     """Endpoint wrapper to validate the llm response against a Pydantic schema."""
 
     @functools.wraps(endpoint_func)
-    async def wrapper(request: dict[str, typ.Any], retry_fn_constructor: Callable) -> BaseResponse:
+    async def wrapper(
+        request: dict[str, typ.Any], retry_fn_constructor: Callable
+    ) -> BaseResponse:
         for attempt in range(max_attempts):
+            if attempt > int(max_attempts * 0.5):
+                request["reasoning_effort"] = "medium"
+            elif attempt > int(max_attempts * 0.75):
+                request["reasoning_effort"] = "high"
+
             resp: BaseResponse = await endpoint_func(request, retry_fn_constructor)
 
             try:
@@ -80,7 +97,9 @@ def _structured_call(
                 )
                 continue
 
-        raise StructuredResponseError("No response was validated against the provided schema.")
+        raise StructuredResponseError(
+            "No response was validated against the provided schema."
+        )
 
     return wrapper
 
@@ -117,7 +136,9 @@ def _pydantic_tools_call(
 
             request = _adjust_temperature(request, adjust_temp_factor)
 
-        raise StructuredResponseError("No response was validated against the provided list of tools.")
+        raise StructuredResponseError(
+            "No response was validated against the provided list of tools."
+        )
 
     return wrapper
 
@@ -150,12 +171,16 @@ def _sync_call(
 def _batch_decorator(
     async_method: typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, BaseResponse]],
 ) -> typ.Callable[..., typ.Coroutine[typ.Any, typ.Any, list[BaseResponse | Exception]]]:
-    async def wrapper(requests: list[dict[str, typ.Any]], retry_fn_constructor) -> list[BaseResponse | Exception]:
+    async def wrapper(
+        requests: list[dict[str, typ.Any]], retry_fn_constructor
+    ) -> list[BaseResponse | Exception]:
         # Explicitly allow BaseResponse, Exception, BaseExceptionGroup, or None
         responses: list[BaseResponse | Exception | None] = [None] * len(requests)
 
         async def task_wrapper(index: int, request: dict[str, typ.Any]) -> None:
-            response = await retry_fn_constructor()(async_method)(request, retry_fn_constructor)
+            response = await retry_fn_constructor()(async_method)(
+                request, retry_fn_constructor
+            )
             responses[index] = response
 
         # Handle exceptions in the task group
@@ -184,7 +209,11 @@ def build_cache_key(ignore_args: list[str], func, *args, **kwargs) -> str:
     bound_arguments.apply_defaults()
 
     # Filter out ignored arguments
-    filtered_args = {key: value for key, value in bound_arguments.arguments.items() if key not in ignore_args}
+    filtered_args = {
+        key: value
+        for key, value in bound_arguments.arguments.items()
+        if key not in ignore_args
+    }
 
     # Convert bound arguments to a string representation
     key_str = json.dumps(filtered_args, sort_keys=True, default=str)
