@@ -72,12 +72,12 @@ class OpenAIChatRequest(pydantic.BaseModel):
     logit_bias: dict[int, float] | None = None
     max_tokens: int | None = None
     max_completion_tokens: int | None = None
+    reasoning_effort: str | None = "medium"
     n: int | None = 1
     presence_penalty: None | float = 0
     stream: bool | None = False
     seed: int | None = None
     stop: str | list[str] | None = None
-    temperature: float | None = 0.7
     top_p: float | None = 1
     user: str | None = None
     response_format: ResponseFormat | ResponseFormatJSONSchema | None = pydantic.Field(
