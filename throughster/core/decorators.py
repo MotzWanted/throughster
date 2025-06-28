@@ -93,7 +93,7 @@ def _structured_call(
             except Exception as e:
                 request = _adjust_temperature(request, adjust_temp_factor)
                 logger.info(
-                    f"[{attempt}/{max_attempts}] {e}. Retrying with increased temperature: {request.get('temperature')}"
+                    f"[{attempt}/{max_attempts}] {e}. Retrying with increased temperature and tokens: {request.get('temperature'), request.get("max_completion_tokens")}"
                 )
                 continue
 
